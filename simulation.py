@@ -22,20 +22,24 @@ class Simulation:
         self.population[:, 0] = [x for x in range(self.total)]
         self.population[:, 1] = np.random.uniform(0.01, 0.99, self.total)
         self.population[:, 2] = np.random.uniform(0.01, 0.99, self.total)
-        self.population[:, 3] = np.random.normal(0, 0.3, self.total)
-        self.population[:, 4] = np.random.normal(0, 0.3, self.total)
+        self.population[:, 3] = np.random.normal(0.15, 0.3, self.total)
+        self.population[:, 4] = np.random.normal(0.15, 0.3, self.total)
         states = np.array(self.healthy*[0] + self.armed*[1] + self.infected*[2])
         self.population[:, 5] = np.random.permutation(states)
         
         # Initial parameters
-        self.chanceOfInfection = 0.08
+        self.chanceOfInfection = 0.15
         self.infectionRange = 0.03
-        self.chanceOfDeath = 0.1
+        self.chanceOfDeath = 0.5
         self.attackRange = 0.02
+        self.chanceOfUpgrade = .001
         self.speed = 0.01
         
+        
+        # Simulation variables
         self.frames = 100
         self.stats = np.zeros((5, self.frames))
+        self.statsArray = []
     
     def update_positions(self):
         self.population[:,1] = (self.population[:,1] + self.population[:,3] * 
@@ -100,18 +104,23 @@ class Simulation:
                 if np.random.random() < chance_of_death:
                     self.population[zombie, 5] = 3
     
-    def randomize(self):
-        pass
+    def upgrade(self):
+        dist = np.random.uniform(0., 1., self.total)
+        self.population[:, 5] = np.where(np.logical_and(self.population[:, 5] == 0,
+                                          dist<self.chanceOfUpgrade), 1, self.population[:, 5])
 
     def draw(self, frame, ax, gr):
         if self.init_draw:
             self.update_positions()
             self.infect()
             self.attack()
+            self.upgrade()
             self.clip_positions()
         else:
             self.init_draw = True
-
+            
+        if frame == self.frames:
+            self.statsArray.append(np.copy(self.stats))
         
         ax.clear()
         gr.clear()
