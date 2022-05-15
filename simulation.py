@@ -27,10 +27,10 @@ class Simulation:
         states = np.array(self.healthy*[0] + self.armed*[1] + self.infected*[2])
         self.population[:, 5] = np.random.permutation(states)
         
-        # Initial parameters
-        self.chanceOfInfection = 0.15
-        self.infectionRange = 0.03
-        self.chanceOfDeath = 0.5
+        # Simulation parameters
+        self.chanceOfInfection = 0.1
+        self.infectionRange = 0.05
+        self.chanceOfDeath = 1.
         self.attackRange = 0.02
         self.chanceOfUpgrade = .001
         self.speed = 0.01
@@ -56,8 +56,9 @@ class Simulation:
         return indices
         
     def calc_dist(self, idx, idy):
-        return np.sqrt((self.population[idx, 1] - self.population[idy, 1])**2 +
-                       (self.population[idx, 2] - self.population[idy, 2])**2)
+        a = self.population[idx, 1:3]
+        b = self.population[idy, 1:3]
+        return np.linalg.norm(a-b)
     
     def clip_positions(self):
         self.population[:, 3] = np.where(self.population[:, 1] < 0,
@@ -119,8 +120,7 @@ class Simulation:
         else:
             self.init_draw = True
             
-        if frame == self.frames:
-            self.statsArray.append(np.copy(self.stats))
+
         
         ax.clear()
         gr.clear()
@@ -148,6 +148,8 @@ class Simulation:
         
         self.stats[:, frame] = np.array([frame, healthy.shape[0], armed.shape[0],
                                          infected.shape[0], dead.shape[0]])
+        if frame == self.frames - 1:
+            self.statsArray.append(np.copy(self.stats))
         
         gr.plot(self.stats[0, :frame], self.stats[1, :frame], '-', color='orange', label='healthy')
         gr.plot(self.stats[0, :frame], self.stats[2, :frame], '-', color='hotpink', label='warriors')
@@ -165,29 +167,19 @@ class Simulation:
 
         self.stats = np.zeros((5, self.frames))
 
-        self.anim = animation.FuncAnimation(fig, self.draw, frames=self.frames, interval=2, fargs=(ax, gr, ))
+        self.anim = animation.FuncAnimation(fig, self.draw, frames=self.frames, interval=50, fargs=(ax, gr, ))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    def draw_stats(self, num = 0):
+        if self.statsArray.__len__() >0:
+            stats = self.statsArray[0]
+        else:
+            stats = self.stats
+        plt.plot(stats[0, :], stats[1, :], '-', color='orange', label='healthy')
+        plt.plot(stats[0, :], stats[2, :], '-', color='hotpink', label='warriors')
+        plt.plot(stats[0, :], stats[3, :], '-', color='seagreen', label='infected')
+        plt.plot(stats[0, :], stats[4, :], '-', color='black', label='dead')
+        
+        plt.legend()
+        plt.grid()
 
 
