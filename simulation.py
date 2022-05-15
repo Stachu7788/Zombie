@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib import animation
 
 class Simulation:    
     def __init__(self, healthy: int = 900, armed: int = 50, infected: int = 50):
@@ -7,7 +8,8 @@ class Simulation:
         self.armed = armed
         self.infected = infected
         self.total = self.healthy + self.armed + self.infected
-        self.population = np.zeros((self.total, 10))
+        self.population = np.zeros((self.total, 6))
+        self.init_draw = False
         """
         population:
             0: id
@@ -15,7 +17,7 @@ class Simulation:
             2: y coordinate
             3: x direction speed
             4: y direction speed
-            5: state(0: healthy, 1: armed, 2: infected)
+            5: state(0: healthy, 1: armed, 2: infected 3: dead)
         """
         self.population[:, 0] = [x for x in range(self.total)]
         self.population[:, 1] = np.random.uniform(0.01, 0.99, self.total)
@@ -25,14 +27,34 @@ class Simulation:
         states = np.array(self.healthy*[0] + self.armed*[1] + self.infected*[2])
         self.population[:, 5] = np.random.permutation(states)
         
-        self.chanceOfInfection = 0.03
-        self.chanceOf__ = 0.05
+        # Initial parameters
+        self.chanceOfInfection = 0.08
+        self.infectionRange = 0.03
+        self.chanceOfDeath = 0.1
+        self.attackRange = 0.02
         self.speed = 0.01
+        
+        self.frames = 100
+        self.stats = np.zeros((5, self.frames))
     
     def update_positions(self):
-        self.population[:,1] = self.population[:,1] + self.population[:,3] * self.speed
-        self.population[:,2] = self.population[:,2] + self.population [:,4] * self.speed
+        self.population[:,1] = (self.population[:,1] + self.population[:,3] * 
+                                self.speed)
+        self.population[:,2] = (self.population[:,2] + self.population [:,4] * 
+                                self.speed)
         
+    def find_nearby(self, infection_zone, state):
+        indices = np.int32(self.population[:,0][(infection_zone[0] < self.population[:,1]) &
+                                            (self.population[:,1] < infection_zone[1]) &
+                                            (infection_zone[2] < self.population [:,2]) &
+                                            (self.population[:,2] < infection_zone[3]) &
+                                            (self.population[:,5] == state)])
+        return indices
+        
+    def calc_dist(self, idx, idy):
+        return np.sqrt((self.population[idx, 1] - self.population[idy, 1])**2 +
+                       (self.population[idx, 2] - self.population[idy, 2])**2)
+    
     def clip_positions(self):
         self.population[:, 3] = np.where(self.population[:, 1] < 0,
                                          -self.population[:, 3], 
@@ -47,24 +69,116 @@ class Simulation:
                                          -self.population[:, 4], 
                                          self.population[:, 4])
         self.population[:, 1:3] = np.clip(self.population[:, 1:3], 0., 1.)
+
+    def infect(self):
+        infected = self.population[self.population[:, 5] == 2]
+        
+        for zombie in infected:
+            infection_zone = [zombie[1] - self.infectionRange, 
+                              zombie[1] + self.infectionRange,
+                              zombie[2] - self.infectionRange,
+                              zombie[2] + self.infectionRange]
+            healthy_in_zone = self.find_nearby(infection_zone, 0)
+            armed_in_zone = self.find_nearby(infection_zone, 1)
+            healthy_in_zone = np.concatenate((healthy_in_zone, armed_in_zone))
+            for healthy in healthy_in_zone:
+                chanceOfInfection = self.chanceOfInfection * self.infectionRange
+                if np.random.random() < chanceOfInfection:
+                    self.population[healthy, 5] = 2
+                    
+    def attack(self):
+        armed = self.population[self.population[:, 5] == 1]
+        
+        for fighter in armed:
+            infection_zone = [fighter[1] - self.infectionRange, 
+                              fighter[1] + self.infectionRange,
+                              fighter[2] - self.infectionRange,
+                              fighter[2] + self.infectionRange]
+            zombie_in_zone = self.find_nearby(infection_zone, 2)
+            for zombie in zombie_in_zone:
+                chance_of_death = self.chanceOfDeath * self.attackRange
+                if np.random.random() < chance_of_death:
+                    self.population[zombie, 5] = 3
     
-    def draw(self, frame, ax):
+    def randomize(self):
+        pass
+
+    def draw(self, frame, ax, gr):
+        if self.init_draw:
+            self.update_positions()
+            self.infect()
+            self.attack()
+            self.clip_positions()
+        else:
+            self.init_draw = True
+
+        
         ax.clear()
+        gr.clear()
+        
         ax.set_xlim(-0.01, 1.01)
         ax.set_ylim(-0.01, 1.01)
         
+        gr.set_xlim(0, self.frames)
+        
         healthy = self.population[self.population[:, 5] == 0][:, 1:3]
-        ax.scatter(healthy[:, 0], healthy[:, 1], c='b', marker='.')
+        ax.scatter(healthy[:, 0], healthy[:, 1], c='orange', marker='.')
 
         armed = self.population[self.population[:, 5] == 1][:, 1:3]
         ax.scatter(armed[:, 0], armed[:, 1], c='hotpink', marker='.')
 
         infected = self.population[self.population[:, 5] == 2][:, 1:3]
-        ax.scatter(infected[:, 0], infected[:, 1], c='g', marker='.')
-        ax.set_title(f"Frame: {frame}")
+        ax.scatter(infected[:, 0], infected[:, 1], c='seagreen', marker='.')
         
+        dead = self.population[self.population[:, 5] == 3][:, 1:3]
+        # ax.scatter(dead[:, 0], dead[:, 1], c='k', marker='.')
         
-        self.update_positions()
-        self.clip_positions()
-        return ax
+        ax.set_title(f"Frame: {frame}, Healthy: {healthy.shape[0]}, "
+                     f"Armed: {armed.shape[0]}, Infected: {infected.shape[0]},"
+                     f" Dead: {dead.shape[0]}")
         
+        self.stats[:, frame] = np.array([frame, healthy.shape[0], armed.shape[0],
+                                         infected.shape[0], dead.shape[0]])
+        
+        gr.plot(self.stats[0, :frame], self.stats[1, :frame], '-', color='orange', label='healthy')
+        gr.plot(self.stats[0, :frame], self.stats[2, :frame], '-', color='hotpink', label='warriors')
+        gr.plot(self.stats[0, :frame], self.stats[3, :frame], '-', color='seagreen', label='infected')
+        gr.plot(self.stats[0, :frame], self.stats[4, :frame], '-', color='black', label='dead')
+        
+        gr.legend()
+        
+        return ax, gr
+
+    def simulate(self, frames):
+        fig, (ax, gr) = plt.subplots(2, 1, figsize=(8, 10), gridspec_kw={'height_ratios': [4, 1]})
+        
+        self.frames = frames
+
+        self.stats = np.zeros((5, self.frames))
+
+        self.anim = animation.FuncAnimation(fig, self.draw, frames=self.frames, interval=2, fargs=(ax, gr, ))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
