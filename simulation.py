@@ -110,7 +110,7 @@ class Simulation:
         self.population[:, 5] = np.where(np.logical_and(self.population[:, 5] == 0,
                                           dist<self.chanceOfUpgrade), 1, self.population[:, 5])
 
-    def draw(self, frame, ax, gr):
+    def update(self):
         if self.init_draw:
             self.update_positions()
             self.infect()
@@ -119,9 +119,9 @@ class Simulation:
             self.clip_positions()
         else:
             self.init_draw = True
-            
-
-        
+    
+    def draw(self, frame, ax, gr):
+        self.update()
         ax.clear()
         gr.clear()
         
